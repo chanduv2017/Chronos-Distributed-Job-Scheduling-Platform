@@ -3,6 +3,7 @@
  * Creates all tables needed for the job scheduling platform.
  */
 const { Pool } = require('pg');
+require('dotenv').config();
 const config = require('../config');
 const logger = require('../lib/logger');
 
