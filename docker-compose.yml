@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  # PostgreSQL: job definitions, execution history, DLQ
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: job_scheduler
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis: streams, locks, leader election
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Worker nodes (scale to 10+)
+  worker:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      PG_HOST: postgres
+      PG_DATABASE: job_scheduler
+      PG_USER: postgres
+      PG_PASSWORD: postgres
+      REDIS_HOST: redis
+      LOG_LEVEL: info
+    deploy:
+      replicas: 10  # 10 concurrent workers
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
